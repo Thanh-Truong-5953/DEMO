@@ -8,14 +8,21 @@ package client;
 import java.awt.Color;
 import java.awt.EventQueue;
 import java.awt.Font;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.net.Socket;
 import javax.swing.GroupLayout;
 import javax.swing.GroupLayout.Alignment;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import static javax.swing.JFrame.setDefaultLookAndFeelDecorated;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
@@ -39,8 +46,11 @@ import javax.swing.border.EmptyBorder;
 	private DataOutputStream dos;
 	
 	private String username;
-        
-    public static void main(String[] args) {
+	
+	/**
+	 * Launch the application.
+	 */
+	public static void main(String[] args) {
 		EventQueue.invokeLater(new Runnable() {
 			public void run() {
 				try {
@@ -52,8 +62,15 @@ import javax.swing.border.EmptyBorder;
 			}
 		});
 	}
-    public LoginFrame (){
-        setTitle("CLG CHAT");
+        
+        
+        
+	
+	/**
+	 * Create the frame.
+	 */
+	public LoginFrame() {
+		setTitle("CLG CHAT");
 		
 		setDefaultLookAndFeelDecorated(true);
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -76,7 +93,8 @@ import javax.swing.border.EmptyBorder;
 		txtUsername.setColumns(10);
 		
 		txtPassword = new JPasswordField();
-                JPanel buttons = new JPanel();
+		
+		JPanel buttons = new JPanel();
 		buttons.setBackground(new Color(230, 240, 247));
 		JPanel notificationContainer = new JPanel();
 		notificationContainer.setBackground(new Color(230, 240, 247));
@@ -126,14 +144,177 @@ import javax.swing.border.EmptyBorder;
 		
 		JButton login = new JButton("Log in");
 		JButton signup = new JButton("Sign up");
-                login.setEnabled(false);
-                signup.setEnabled(false);
-                
-                JLabel headerContent = new JLabel("LOGIN");
+		
+		login.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				String response = Login(txtUsername.getText(), String.copyValueOf(txtPassword.getPassword()));
+				
+				// đăng nhập thành công thì server sẽ trả về  chuỗi "Log in successful"
+				if ( response.equals("Log in successful") ) {
+					username = txtUsername.getText();
+					EventQueue.invokeLater(new Runnable() {
+						public void run() {
+							try {
+								ChatFrame frame = new ChatFrame(username, dis, dos);
+								frame.setVisible(true);
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
+						}
+					});
+					dispose();
+				} else {
+					login.setEnabled(false);
+					signup.setEnabled(false);
+					txtPassword.setText("");
+					notification.setText(response);
+				}
+			}
+		});
+		login.setEnabled(false);
+		buttons.add(login);
+		
+		signup.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				
+				JPasswordField confirm = new JPasswordField();
+				
+				// Hiển thị hộp thoại xác nhận password
+				
+			    int action = JOptionPane.showConfirmDialog(null, confirm,"Comfirm your password",JOptionPane.OK_CANCEL_OPTION);
+			    if (action == JOptionPane.OK_OPTION) {
+			    	if (String.copyValueOf(confirm.getPassword()).equals(String.copyValueOf(txtPassword.getPassword()))) {
+			    		String response = Signup(txtUsername.getText(), String.copyValueOf(txtPassword.getPassword()));
+					
+			    		// đăng ký thành công thì server sẽ trả về  chuỗi "Log in successful"
+						if ( response.equals("Sign up successful") ) {
+							username = txtUsername.getText();
+							EventQueue.invokeLater(new Runnable() {
+								public void run() {
+									try {
+										// In ra thông báo đăng kí thành công
+										int confirm = JOptionPane.showConfirmDialog(null, "Sign up successful\nWelcome to MANGO CHAT", "Sign up successful", JOptionPane.DEFAULT_OPTION);
+										 
+										ChatFrame frame = new ChatFrame(username, dis, dos);
+										frame.setVisible(true);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+								}
+							});
+							dispose();
+						} else {
+							login.setEnabled(false);
+							signup.setEnabled(false);
+							txtPassword.setText("");
+							notification.setText(response);
+						}
+					} else {
+			    		notification.setText("Confirm password does not match");
+			    	}
+			    }
+			}
+		});
+		signup.setEnabled(false);
+		buttons.add(signup);
+		
+		JLabel headerContent = new JLabel("LOGIN");
 		headerContent.setFont(new Font("Poor Richard", Font.BOLD, 24));
 		headerPanel.add(headerContent);
 		contentPane.setLayout(gl_contentPane);
-    }
+		
+		txtUsername.addKeyListener(new KeyAdapter() {
+			@Override
+			public void keyReleased(KeyEvent e) {
+				if (txtUsername.getText().isEmpty()|| String.copyValueOf(txtPassword.getPassword()).isEmpty()) {
+					login.setEnabled(false);
+					signup.setEnabled(false);
+				} else {
+					login.setEnabled(true);
+					signup.setEnabled(true);
+				}
+			}
+		});
+		
+		txtPassword.addKeyListener(new KeyAdapter() {
+			@Override
+			public void keyReleased(KeyEvent e) {
+				if (txtUsername.getText().isEmpty()|| String.copyValueOf(txtPassword.getPassword()).isEmpty()) {
+					login.setEnabled(false);
+					signup.setEnabled(false);
+				} else {
+					login.setEnabled(true);
+					signup.setEnabled(true);
+				}
+			}
+		});
+		
+		this.getRootPane().setDefaultButton(login);
+	}
+	
+	/**
+	 * Gửi yêu cầu đăng nhập đến server
+	 * Trả về kết quả phản hồi từ server
+	 */
+	public String Login(String username, String password) {
+		try {
+			Connect();
+			
+			dos.writeUTF("Log in");
+			dos.writeUTF(username);
+			dos.writeUTF(password);
+			dos.flush();
+			
+			String response = dis.readUTF();
+			return response;
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+			return "Network error: Log in fail";
+		}
+	}
+	
+	/**
+	 * Gửi yêu cầu đăng ký đến server
+	 * Trả về kết quả phản hồi từ server
+	 */
+	public String Signup(String username, String password) {
+		try {
+			Connect();
+			
+			dos.writeUTF("Sign up");
+			dos.writeUTF(username);
+			dos.writeUTF(password);
+			dos.flush();
+			
+			String response = dis.readUTF();
+			return response;
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+			return "Network error: Sign up fail";
+		}
+	}
+	
+	/**
+	 * Kết nối đến server
+	 */
+	public void Connect() {
+		try {
+			if (socket != null) {
+				socket.close();
+			}
+			socket = new Socket(host, port);
+			this.dis = new DataInputStream(socket.getInputStream());
+			this.dos = new DataOutputStream(socket.getOutputStream());
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		}
+	}
+	
+	public String getUsername() {
+		return this.username;
+	}
 }
 
 
